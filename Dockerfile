@@ -28,4 +28,6 @@ RUN apt-get -y update && \
 ENV RUST_LOG="error,suedtirol1-tracker-api=info"
 COPY --from=build-stage /target/release/suedtirol1-tracker-api /
 
+EXPOSE 8080
+
 CMD ["/suedtirol1-tracker-api"]

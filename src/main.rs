@@ -4,7 +4,7 @@ extern crate dotenv;
 extern crate serde;
 extern crate serde_json;
 
-use actix_web::{web, App, HttpServer, HttpRequest, HttpResponse, Responder, Result};
+use actix_web::{web, App, HttpServer, HttpRequest, Responder};
 
 mod db;
 mod models;

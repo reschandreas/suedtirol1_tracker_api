@@ -34,7 +34,7 @@ async fn main() -> std::io::Result<()> {
             .route("/v1/current", web::get().to(current))
             .route("/v1/plays/{id}", web::get().to(plays))
     })
-    .bind("127.0.0.1:8080")?
+    .bind("localhost:8080")?
     .run()
     .await
 }

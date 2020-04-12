@@ -6,3 +6,9 @@ pub struct JoinResult {
     pub song: crate::db::models::Song,
     pub is_new: bool,
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PlayResult {
+    pub song: crate::db::models::Song,
+    pub plays: i64,
+}

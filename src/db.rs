@@ -74,11 +74,13 @@ pub fn get_all_plays() -> Vec<PlayResult> {
             let first_entry = vec.pop().unwrap();
             let mut dates = Vec::new();
 
-            dates.push(first_entry.1.unwrap().date);
+            dates.push((first_entry.1.as_ref().unwrap().date, first_entry.1.as_ref().unwrap().is_new));
 
             for d in vec.iter() {
-                dates.push(d.1.as_ref().unwrap().date);
+                dates.push((d.1.as_ref().unwrap().date, d.1.as_ref().unwrap().is_new));
             }
+
+            dates.sort_by(|a, b| b.0.cmp(&a.0));
 
             results.push(PlayResult {
                 song: first_entry.0.clone(),
@@ -99,9 +101,10 @@ pub fn get_plays(song_id: i32) -> Option<PlayResult> {
     let db = establish_connection();
 
     if let Ok(dates) = logs
-        .select(date)
+        .select((date, is_new))
+        .order_by(date)
         .filter(song.eq(song_id))
-        .load::<chrono::NaiveDateTime>(&db)
+        .load::<(chrono::NaiveDateTime, bool)>(&db)
     {
         Some(PlayResult {
             song: songs

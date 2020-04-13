@@ -57,14 +57,28 @@ pub fn get_current() -> Option<JoinResult> {
 }
 
 pub fn get_all_plays() -> Vec<PlayResult> {
-    let mut results = Vec::new();
+    use self::schema::logs::dsl::*;
+    use self::schema::songs::dsl::*;
+    use itertools::Itertools;
 
-    for song in get_all_songs().iter() {
-        results.push(PlayResult {
-            song: song.clone(),
-            plays: get_plays(song.id),
-        });
+    let db = establish_connection();
+
+    let join = songs.left_join(logs);
+
+    let result = join.order_by(id).load::<(Song, Option<Log>)>(&db);
+
+    let mut results: Vec<PlayResult> = Vec::new();
+    if let Ok(r) = result {
+        for (_, group) in &r.into_iter().group_by(|(s, _)| s.id) {
+            let mut vec = group.collect_vec();
+
+            results.push(PlayResult {
+                song: vec.pop().unwrap().0.clone(),
+                plays: vec.len() + 1,
+            });
+        }
     }
+
     results.sort_by(|a, b| b.plays.cmp(&a.plays));
     results
 }

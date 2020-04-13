@@ -10,5 +10,5 @@ pub struct JoinResult {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PlayResult {
     pub song: crate::db::models::Song,
-    pub plays: i64,
+    pub plays: usize,
 }

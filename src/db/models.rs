@@ -7,7 +7,7 @@ pub struct Song {
     pub artist: String,
 }
 
-#[derive(Debug, Clone, Queryable)]
+#[derive(Debug, Deserialize, Serialize, Clone, Queryable)]
 pub struct Log {
     pub date: chrono::NaiveDateTime,
     pub song: i32,

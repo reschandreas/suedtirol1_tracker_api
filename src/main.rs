@@ -2,6 +2,7 @@
 extern crate diesel;
 extern crate dotenv;
 extern crate itertools;
+extern crate memcache;
 extern crate serde;
 extern crate serde_json;
 

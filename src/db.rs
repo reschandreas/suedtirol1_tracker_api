@@ -18,106 +18,189 @@ pub fn establish_connection() -> PgConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
+fn get_memcache_client() -> memcache::Client {
+    memcache::Client::connect("memcache://memcached:11211?timeout=10&tcp_nodelay=true").unwrap()
+}
+
 pub fn get_all_logs() -> Vec<JoinResult> {
-    use self::schema::logs::dsl::*;
-    use self::schema::songs::dsl::*;
+    let mut client = get_memcache_client();
 
-    let db = establish_connection();
+    if let Some(data) = client.get::<String>("all_logs").unwrap() {
+        println!("got all logs from cache");
+        let logs: Vec<JoinResult> = serde_json::from_str(&data).unwrap_or_default();
+        logs
+    } else {
+        println!("got all logs from database");
+        use self::schema::logs::dsl::*;
+        use self::schema::songs::dsl::*;
 
-    convert_to_join_result(
-        logs.inner_join(songs)
-            .order(date.desc())
-            .load::<(Log, Song)>(&db)
-            .expect("Error loading logs"),
-    )
+        let db = establish_connection();
+
+        let results = convert_to_join_result(
+            logs.inner_join(songs)
+                .order(date.desc())
+                .load::<(Log, Song)>(&db)
+                .expect("Error loading logs"),
+        );
+        client
+            .set("all_logs", serde_json::to_string(&results).unwrap(), 120)
+            .unwrap();
+        results
+    }
 }
 
 pub fn get_all_songs() -> Vec<Song> {
-    use self::schema::songs::dsl::*;
+    let mut client = get_memcache_client();
 
-    let db = establish_connection();
+    if let Some(data) = client.get::<String>("all_songs").unwrap() {
+        println!("got all songs from cache");
+        let songs: Vec<Song> = serde_json::from_str(&data).unwrap_or_default();
+        songs
+    } else {
+        println!("got all songs from database");
+        use self::schema::songs::dsl::*;
 
-    songs.load::<Song>(&db).expect("Error loading songs")
+        let db = establish_connection();
+
+        let result = songs.load::<Song>(&db).expect("Error loading songs");
+
+        client
+            .set("all_songs", serde_json::to_string(&result).unwrap(), 120)
+            .unwrap();
+
+        result
+    }
 }
 
 pub fn get_current() -> Option<JoinResult> {
-    use self::schema::logs::dsl::*;
-    use self::schema::songs::dsl::*;
+    let mut client = get_memcache_client();
 
-    let db = establish_connection();
+    if let Some(data) = client.get::<String>("current").unwrap() {
+        println!("got current from cache");
+        let current: Option<JoinResult> = serde_json::from_str(&data).unwrap_or(None);
+        current
+    } else {
+        println!("got current from database");
+        use self::schema::logs::dsl::*;
+        use self::schema::songs::dsl::*;
 
-    convert_to_join_result(
-        logs.inner_join(songs)
-            .limit(1)
-            .order(date.desc())
-            .load::<(Log, Song)>(&db)
-            .expect("Error loading logs"),
-    )
-    .pop()
+        let db = establish_connection();
+
+        let result = convert_to_join_result(
+            logs.inner_join(songs)
+                .limit(1)
+                .order(date.desc())
+                .load::<(Log, Song)>(&db)
+                .expect("Error loading logs"),
+        )
+        .pop();
+
+        client
+            .set("current", serde_json::to_string(&result).unwrap(), 60)
+            .unwrap();
+
+        result
+    }
 }
 
 pub fn get_all_plays() -> Vec<PlayResult> {
-    use self::schema::logs::dsl::*;
-    use self::schema::songs::dsl::*;
-    use itertools::Itertools;
+    let mut client = get_memcache_client();
 
-    let db = establish_connection();
+    if let Some(data) = client.get::<String>("all_plays").unwrap() {
+        println!("got all plays from cache");
+        let plays: Vec<PlayResult> = serde_json::from_str(&data).unwrap_or_default();
+        plays
+    } else {
+        println!("got all plays from database");
+        use self::schema::logs::dsl::*;
+        use self::schema::songs::dsl::*;
+        use itertools::Itertools;
 
-    let join = songs.left_join(logs);
+        let db = establish_connection();
 
-    let result = join.order_by(id).load::<(Song, Option<Log>)>(&db);
+        let join = songs.left_join(logs);
 
-    let mut results: Vec<PlayResult> = Vec::new();
-    if let Ok(r) = result {
-        for (_, group) in &r.into_iter().group_by(|(s, _)| s.id) {
-            let mut vec = group.collect_vec();
-            let first_entry = vec.pop().unwrap();
-            let mut dates = Vec::new();
+        let result = join.order_by(id).load::<(Song, Option<Log>)>(&db);
 
-            dates.push((first_entry.1.as_ref().unwrap().date, first_entry.1.as_ref().unwrap().is_new));
+        let mut results: Vec<PlayResult> = Vec::new();
+        if let Ok(r) = result {
+            for (_, group) in &r.into_iter().group_by(|(s, _)| s.id) {
+                let mut vec = group.collect_vec();
+                let first_entry = vec.pop().unwrap();
+                let mut dates = Vec::new();
 
-            for d in vec.iter() {
-                dates.push((d.1.as_ref().unwrap().date, d.1.as_ref().unwrap().is_new));
+                dates.push((
+                    first_entry.1.as_ref().unwrap().date,
+                    first_entry.1.as_ref().unwrap().is_new,
+                ));
+
+                for d in vec.iter() {
+                    dates.push((d.1.as_ref().unwrap().date, d.1.as_ref().unwrap().is_new));
+                }
+
+                dates.sort_by(|a, b| b.0.cmp(&a.0));
+
+                results.push(PlayResult {
+                    song: first_entry.0.clone(),
+                    plays: dates.len(),
+                    dates,
+                });
             }
-
-            dates.sort_by(|a, b| b.0.cmp(&a.0));
-
-            results.push(PlayResult {
-                song: first_entry.0.clone(),
-                plays: dates.len(),
-                dates,
-            });
         }
-    }
 
-    results.sort_by(|a, b| b.plays.cmp(&a.plays));
-    results
+        results.sort_by(|a, b| b.plays.cmp(&a.plays));
+
+        client
+            .set("all_plays", serde_json::to_string(&results).unwrap(), 120)
+            .unwrap();
+
+        results
+    }
 }
 
 pub fn get_plays(song_id: i32) -> Option<PlayResult> {
-    use self::schema::logs::dsl::*;
-    use self::schema::songs::dsl::*;
+    let mut client = get_memcache_client();
 
-    let db = establish_connection();
-
-    if let Ok(mut dates) = logs
-        .select((date, is_new))
-        .order_by(date)
-        .filter(song.eq(song_id))
-        .load::<(chrono::NaiveDateTime, bool)>(&db)
-    {
-        dates.sort_by(|a, b| b.0.cmp(&a.0));
-
-        Some(PlayResult {
-            song: songs
-                .filter(id.eq(song_id))
-                .first::<Song>(&db)
-                .expect("Error loading song"),
-            plays: dates.len(),
-            dates,
-        })
+    if let Some(data) = client.get::<String>(&format!("plays_{}", song_id)).unwrap() {
+        println!("got plays of {} from cache", song_id);
+        let plays: Option<PlayResult> = serde_json::from_str(&data).unwrap_or(None);
+        plays
     } else {
-        None
+        println!("got plays of {} from database", song_id);
+        use self::schema::logs::dsl::*;
+        use self::schema::songs::dsl::*;
+
+        let db = establish_connection();
+
+        if let Ok(mut dates) = logs
+            .select((date, is_new))
+            .order_by(date)
+            .filter(song.eq(song_id))
+            .load::<(chrono::NaiveDateTime, bool)>(&db)
+        {
+            dates.sort_by(|a, b| b.0.cmp(&a.0));
+
+            let result = Some(PlayResult {
+                song: songs
+                    .filter(id.eq(song_id))
+                    .first::<Song>(&db)
+                    .expect("Error loading song"),
+                plays: dates.len(),
+                dates,
+            });
+
+            client
+                .set(
+                    &format!("plays_{}", song_id),
+                    serde_json::to_string(&result).unwrap(),
+                    300,
+                )
+                .unwrap();
+
+            result
+        } else {
+            None
+        }
     }
 }
 

@@ -71,10 +71,16 @@ pub fn get_all_plays() -> Vec<PlayResult> {
     if let Ok(r) = result {
         for (_, group) in &r.into_iter().group_by(|(s, _)| s.id) {
             let mut vec = group.collect_vec();
-
+            let first_entry = vec.pop().unwrap();
+            let mut dates = Vec::new();
+            dates.push(first_entry.1.unwrap().date);
+            for d in vec.iter() {
+                dates.push(d.1.as_ref().unwrap().date);
+            }
+            
             results.push(PlayResult {
-                song: vec.pop().unwrap().0.clone(),
-                plays: vec.len() + 1,
+                song: first_entry.0.clone(),
+                plays: dates.len(),
             });
         }
     }

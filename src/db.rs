@@ -100,12 +100,14 @@ pub fn get_plays(song_id: i32) -> Option<PlayResult> {
 
     let db = establish_connection();
 
-    if let Ok(dates) = logs
+    if let Ok(mut dates) = logs
         .select((date, is_new))
         .order_by(date)
         .filter(song.eq(song_id))
         .load::<(chrono::NaiveDateTime, bool)>(&db)
     {
+        dates.sort_by(|a, b| b.0.cmp(&a.0));
+
         Some(PlayResult {
             song: songs
                 .filter(id.eq(song_id))

@@ -11,4 +11,5 @@ pub struct JoinResult {
 pub struct PlayResult {
     pub song: crate::db::models::Song,
     pub plays: usize,
+    pub dates: Vec<chrono::NaiveDateTime>,
 }

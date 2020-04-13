@@ -73,14 +73,17 @@ pub fn get_all_plays() -> Vec<PlayResult> {
             let mut vec = group.collect_vec();
             let first_entry = vec.pop().unwrap();
             let mut dates = Vec::new();
+
             dates.push(first_entry.1.unwrap().date);
+
             for d in vec.iter() {
                 dates.push(d.1.as_ref().unwrap().date);
             }
-            
+
             results.push(PlayResult {
                 song: first_entry.0.clone(),
                 plays: dates.len(),
+                dates,
             });
         }
     }
@@ -89,16 +92,28 @@ pub fn get_all_plays() -> Vec<PlayResult> {
     results
 }
 
-pub fn get_plays(song_id: i32) -> i64 {
+pub fn get_plays(song_id: i32) -> Option<PlayResult> {
     use self::schema::logs::dsl::*;
-    use diesel::dsl::count_star;
+    use self::schema::songs::dsl::*;
 
     let db = establish_connection();
 
-    logs.select(count_star())
+    if let Ok(dates) = logs
+        .select(date)
         .filter(song.eq(song_id))
-        .first::<i64>(&db)
-        .unwrap()
+        .load::<chrono::NaiveDateTime>(&db)
+    {
+        Some(PlayResult {
+            song: songs
+                .filter(id.eq(song_id))
+                .first::<Song>(&db)
+                .expect("Error loading song"),
+            plays: dates.len(),
+            dates,
+        })
+    } else {
+        None
+    }
 }
 
 fn convert_to_join_result(vec: Vec<(Log, Song)>) -> Vec<JoinResult> {

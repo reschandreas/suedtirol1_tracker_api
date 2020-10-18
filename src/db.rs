@@ -28,13 +28,12 @@ pub fn get_all_logs() -> Vec<JoinResult> {
 
     let db = establish_connection();
 
-    let results = convert_to_join_result(
+    convert_to_join_result(
         logs.inner_join(songs)
             .order(date.desc())
             .load::<(Log, Song)>(&db)
             .expect("Error loading logs"),
-    );
-    results
+    )
 }
 
 pub fn get_all_songs() -> Vec<Song> {
@@ -42,8 +41,7 @@ pub fn get_all_songs() -> Vec<Song> {
 
     let db = establish_connection();
 
-    let result = songs.load::<Song>(&db).expect("Error loading songs");
-    result
+    songs.load::<Song>(&db).expect("Error loading songs")
 }
 
 pub fn get_current() -> Option<JoinResult> {

@@ -36,9 +36,8 @@ deploy:
     - chmod 600 /root/.ssh/id_rsa
 
   script:
-    - SETUP="cd ~/container/andreas"
     - LOGIN="docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $REGISTRY"
-    - PULL="docker-compose -f docker-compose.yml pull --quiet"
-    - BUILD="docker-compose -f docker-compose.yml up -d $DOCKER_SERVICE_NAME"
-    - ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no deploy@${SERVER_URL} "$SETUP && $LOGIN && $PULL && $BUILD"
+    - PULL="docker-compose -f andreas-compose.yml pull --quiet"
+    - BUILD="docker-compose -f andreas-compose.yml up -d $DOCKER_SERVICE_NAME"
+    - ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=no deploy@${SERVER_URL} "$LOGIN && $PULL && $BUILD"
 
